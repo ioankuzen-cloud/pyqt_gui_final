@@ -1,0 +1,8 @@
+[project]
+name = "pyqt-gui-final"
+version = "1.0.0"
+description = "Variant 1 PyQt5 feed need calculator"
+requires-python = ">=3.8"
+dependencies = [
+    "PyQt5>=5.15",
+]

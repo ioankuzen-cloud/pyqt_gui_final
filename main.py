@@ -69,7 +69,7 @@ class ScatterChart(QWidget):
         if not self.values:
             painter.setFont(QFont("Arial", 10))
             painter.setPen(QColor("#6b7280"))
-            painter.drawText(self.rect(), Qt.AlignCenter, "Нажмите кнопку «График»")
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Нажмите кнопку «График»")
             return
 
         left = 70
@@ -134,7 +134,7 @@ class FeedNeedWindow(QMainWindow):
         form_layout = QVBoxLayout(form_area)
 
         form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignRight)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.cows_input = QLineEdit()
         self.days_input = QLineEdit()
         self.feed_combo = QComboBox()
