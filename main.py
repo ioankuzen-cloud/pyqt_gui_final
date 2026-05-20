@@ -1,7 +1,10 @@
 import sys
 
+# noinspection PyPackageRequirements
 from PyQt5.QtCore import Qt
+# noinspection PyPackageRequirements
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen
+# noinspection PyPackageRequirements
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
