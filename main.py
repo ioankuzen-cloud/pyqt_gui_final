@@ -35,10 +35,11 @@ PREVIOUS_VALUES = {
     "Прошлый год": 29500,
 }
 
-QT_PLUGINS = Path(PyQt5.__file__).resolve().parent / "Qt5" / "plugins"
+PYQT_DIR = Path(PyQt5.__file__).resolve().parent
+QT_PLUGINS = PYQT_DIR / "Qt5" / "plugins"
 QT_PLATFORMS = QT_PLUGINS / "platforms"
 
-if QT_PLATFORMS.exists():
+if sys.platform.startswith("win") and QT_PLATFORMS.exists():
     os.environ["QT_QPA_PLATFORM"] = "windows"
     os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(QT_PLATFORMS)
     os.environ["QT_PLUGIN_PATH"] = str(QT_PLUGINS)
