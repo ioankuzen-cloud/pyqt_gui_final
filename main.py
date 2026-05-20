@@ -1,5 +1,9 @@
+import os
 import sys
+from pathlib import Path
 
+# noinspection PyPackageRequirements
+import PyQt5
 # noinspection PyPackageRequirements
 from PyQt5.QtCore import Qt
 # noinspection PyPackageRequirements
@@ -30,6 +34,14 @@ PREVIOUS_VALUES = {
     "Позапрошлый год": 51000,
     "Прошлый год": 29500,
 }
+
+QT_PLUGINS = Path(PyQt5.__file__).resolve().parent / "Qt5" / "plugins"
+QT_PLATFORMS = QT_PLUGINS / "platforms"
+
+if QT_PLATFORMS.exists():
+    os.environ["QT_QPA_PLATFORM"] = "windows"
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(QT_PLATFORMS)
+    os.environ["QT_PLUGIN_PATH"] = str(QT_PLUGINS)
 
 
 def parse_number(text):
