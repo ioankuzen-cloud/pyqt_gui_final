@@ -2,9 +2,13 @@ import os
 import sys
 from pathlib import Path
 
+# noinspection PyPackageRequirements
 import PyQt5
+# noinspection PyPackageRequirements
 from PyQt5.QtCore import Qt
+# noinspection PyPackageRequirements
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen
+# noinspection PyPackageRequirements
 from PyQt5.QtWidgets import (
     QApplication,
     QComboBox,
@@ -12,6 +16,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMainWindow,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
@@ -25,45 +30,45 @@ FEED_NORMS = {
     "Силос": 20,
 }
 
-OLD_VALUES = [51000, 29500]
-OLD_LABELS = ["Позапрошлый год", "Прошлый год"]
+PREVIOUS_VALUES = {
+    "Позапрошлый год": 51000,
+    "Прошлый год": 29500,
+}
+
+PYQT_DIR = Path(PyQt5.__file__).resolve().parent
+QT_PLUGINS = PYQT_DIR / "Qt5" / "plugins"
+QT_PLATFORMS = QT_PLUGINS / "platforms"
+
+if sys.platform.startswith("win") and QT_PLATFORMS.exists():
+    os.environ["QT_QPA_PLATFORM"] = "windows"
+    os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(QT_PLATFORMS)
+    os.environ["QT_PLUGIN_PATH"] = str(QT_PLUGINS)
 
 
-def setup_qt_plugins():
-    pyqt_dir = Path(PyQt5.__file__).resolve().parent
-    plugins_dir = pyqt_dir / "Qt5" / "plugins"
-    platforms_dir = plugins_dir / "platforms"
-
-    if sys.platform.startswith("win") and platforms_dir.exists():
-        os.environ["QT_QPA_PLATFORM"] = "windows"
-        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(platforms_dir)
-        os.environ["QT_PLUGIN_PATH"] = str(plugins_dir)
-
-
-def get_positive_number(line_edit):
-    text = line_edit.text().strip().replace(",", ".")
-    number = float(text)
-
+def parse_number(text):
+    value = text.strip().replace(",", ".")
+    if not value:
+        raise ValueError("Заполните все поля ввода.")
+    number = float(value)
     if number <= 0:
-        raise ValueError
-
+        raise ValueError("Введите положительные числа.")
     return number
 
 
-def pretty_number(number):
-    if number == int(number):
-        return str(int(number))
-    return f"{number:.2f}"
+def format_number(value):
+    if abs(value - round(value)) < 0.0001:
+        return str(int(round(value)))
+    return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
-class Chart(QWidget):
+class ScatterChart(QWidget):
     def __init__(self):
         super().__init__()
         self.labels = []
         self.values = []
-        self.setMinimumHeight(300)
+        self.setMinimumHeight(320)
 
-    def set_data(self, labels, values):
+    def set_values(self, labels, values):
         self.labels = labels
         self.values = values
         self.update()
@@ -73,120 +78,144 @@ class Chart(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.fillRect(self.rect(), QColor("#f6f8fb"))
 
-        painter.setPen(QColor("#111827"))
+        painter.setPen(QColor("#1f2937"))
         painter.setFont(QFont("Arial", 12, QFont.Bold))
-        painter.drawText(20, 30, "График потребности в кормах")
+        painter.drawText(20, 28, "Точечный график потребности в кормах")
 
         if not self.values:
             painter.setFont(QFont("Arial", 10))
+            painter.setPen(QColor("#6b7280"))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "Нажмите кнопку «График»")
             return
 
-        left, top, right, bottom = 70, 60, 30, 60
-        width = self.width() - left - right
-        height = self.height() - top - bottom
+        left = 70
+        top = 55
+        right = 30
+        bottom = 60
+        chart_width = self.width() - left - right
+        chart_height = self.height() - top - bottom
         max_value = max(self.values) * 1.1
 
         painter.setPen(QPen(QColor("#9ca3af"), 1))
-        painter.drawLine(left, top, left, top + height)
-        painter.drawLine(left, top + height, left + width, top + height)
+        painter.drawLine(left, top, left, top + chart_height)
+        painter.drawLine(left, top + chart_height, left + chart_width, top + chart_height)
 
         painter.setFont(QFont("Arial", 9))
+        for step in range(5):
+            value = max_value * step / 4
+            y = top + chart_height - int(chart_height * step / 4)
+            painter.setPen(QColor("#d1d5db"))
+            painter.drawLine(left, y, left + chart_width, y)
+            painter.setPen(QColor("#4b5563"))
+            painter.drawText(8, y + 4, format_number(value))
+
+        point_pen = QPen(QColor("#2563eb"), 2)
+        painter.setBrush(QColor("#f97316"))
+        painter.setFont(QFont("Arial", 9))
+
         for index, value in enumerate(self.values):
-            x = left + index * width // (len(self.values) - 1)
-            y = top + height - int(value * height / max_value)
+            x = left + int(index * chart_width / max(len(self.values) - 1, 1))
+            y = top + chart_height - int(value * chart_height / max_value)
 
-            painter.setPen(QPen(QColor("#2563eb"), 2))
-            painter.setBrush(QColor("#f97316"))
+            painter.setPen(point_pen)
             painter.drawEllipse(x - 6, y - 6, 12, 12)
-
             painter.setPen(QColor("#111827"))
-            painter.drawText(x - 35, y - 12, pretty_number(value))
-            painter.drawText(x - 50, top + height + 25, self.labels[index])
+            painter.drawText(x - 34, y - 12, format_number(value))
+            painter.drawText(x - 52, top + chart_height + 25, self.labels[index])
 
 
-class FeedCalculator(QWidget):
+class FeedNeedWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Расчет потребности в кормах")
-        self.resize(820, 520)
+        self.resize(820, 560)
 
+        central = QWidget()
+        root = QVBoxLayout(central)
+
+        title = QLabel("Расчет потребности в кормах")
+        title.setFont(QFont("Arial", 18, QFont.Bold))
+        root.addWidget(title)
+
+        subtitle = QLabel("Вариант 1")
+        subtitle.setFont(QFont("Arial", 11))
+        subtitle.setStyleSheet("color: #4b5563;")
+        root.addWidget(subtitle)
+
+        body = QHBoxLayout()
+        root.addLayout(body, 1)
+
+        form_area = QWidget()
+        form_area.setMaximumWidth(340)
+        form_layout = QVBoxLayout(form_area)
+
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.cows_input = QLineEdit()
         self.days_input = QLineEdit()
         self.feed_combo = QComboBox()
         self.feed_combo.addItems(FEED_NORMS.keys())
         self.result_input = QLineEdit()
         self.result_input.setReadOnly(True)
-        self.chart = Chart()
 
-        self.create_interface()
-
-    def create_interface(self):
-        main_layout = QVBoxLayout(self)
-
-        title = QLabel("Расчет потребности в кормах")
-        title.setFont(QFont("Arial", 18, QFont.Bold))
-        main_layout.addWidget(title)
-        main_layout.addWidget(QLabel("Вариант 1"))
-
-        content = QHBoxLayout()
-        main_layout.addLayout(content)
-
-        form_layout = QVBoxLayout()
-        form = QFormLayout()
         form.addRow("Поголовье коров, гол.:", self.cows_input)
         form.addRow("Количество дней содержания:", self.days_input)
         form.addRow("Вид корма:", self.feed_combo)
         form.addRow("Потребность, ц:", self.result_input)
         form_layout.addLayout(form)
 
-        calculate_button = QPushButton("Расчет потребности")
-        graph_button = QPushButton("График")
-        calculate_button.clicked.connect(self.calculate)
-        graph_button.clicked.connect(self.show_graph)
-
         buttons = QHBoxLayout()
+        calculate_button = QPushButton("Расчет потребности")
+        chart_button = QPushButton("График")
+        calculate_button.clicked.connect(self.calculate)
+        chart_button.clicked.connect(self.show_chart)
         buttons.addWidget(calculate_button)
-        buttons.addWidget(graph_button)
+        buttons.addWidget(chart_button)
         form_layout.addLayout(buttons)
 
-        info = QLabel("Нормативы: концентраты - 5, сено - 15, силос - 20.")
+        info = QLabel(
+            "Норматив потребности на 1 голову в день:\n"
+            "концентраты - 5 ц, сено - 15 ц, силос - 20 ц."
+        )
         info.setWordWrap(True)
+        info.setStyleSheet("color: #374151; margin-top: 12px;")
         form_layout.addWidget(info)
         form_layout.addStretch()
 
-        content.addLayout(form_layout, 1)
-        content.addWidget(self.chart, 2)
+        self.chart = ScatterChart()
+        body.addWidget(form_area)
+        body.addWidget(self.chart, 1)
+
+        self.setCentralWidget(central)
 
     def calculate_need(self):
-        cows = get_positive_number(self.cows_input)
-        days = get_positive_number(self.days_input)
+        cows = parse_number(self.cows_input.text())
+        days = parse_number(self.days_input.text())
         feed = self.feed_combo.currentText()
         return cows * days * FEED_NORMS[feed]
 
     def calculate(self):
         try:
-            result = self.calculate_need()
-            self.result_input.setText(pretty_number(result))
-            return result
-        except ValueError:
-            QMessageBox.warning(self, "Ошибка", "Введите положительные числа во все поля.")
+            need = self.calculate_need()
+            self.result_input.setText(format_number(need))
+            return need
+        except ValueError as error:
+            QMessageBox.warning(self, "Ошибка ввода", str(error))
             return None
 
-    def show_graph(self):
-        result = self.calculate()
-        if result is None:
+    def show_chart(self):
+        need = self.calculate()
+        if need is None:
             return
 
-        labels = OLD_LABELS + ["Текущий год"]
-        values = OLD_VALUES + [result]
-        self.chart.set_data(labels, values)
+        labels = list(PREVIOUS_VALUES.keys()) + ["Текущий год"]
+        values = list(PREVIOUS_VALUES.values()) + [need]
+        self.chart.set_values(labels, values)
 
 
 def main():
-    setup_qt_plugins()
     app = QApplication(sys.argv)
-    window = FeedCalculator()
+    window = FeedNeedWindow()
     window.show()
     sys.exit(app.exec_())
 
